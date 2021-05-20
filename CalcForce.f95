@@ -3,7 +3,7 @@ SUBROUTINE Integrate(p, w, N, Np, Nw, Lx, Ly, dx, dy, &
                 n_ks, n_r0, n_Fr, n_re, n_ms, n_dp, &
                 c_Fr, c_Fa, c_re, c_rl, &
                 w_Fr,w_re, w_xr, w_xl, w_yb, w_yt, &
-                v0, ddt, ddr, tau, mu0, Af, dt, Ndt, Nret, pr, wr, &
+                v0, ddt, ddr, tau, mu0, Af, dt, Ndt, Nret, Ncores, pr, wr, &
                 fr_mb, fr_mA, fr_ms, fr_mF, fr_ns, fr_nF, &
                 fr_NNs, fr_NNF, fr_cF, fr_sAf, fr_wF, &
                 nanvalue)
@@ -17,7 +17,7 @@ IMPLICIT NONE
     REAL*8, INTENT(IN) :: c_Fr, c_Fa, c_re, c_rl
     REAL*8, INTENT(IN) :: w_Fr, w_re, w_xr, w_xl, w_yb, w_yt
     REAL*8, INTENT(IN) :: v0, ddt, ddr, tau, mu0, Af(:), dt
-    INTEGER, INTENT(IN) :: N, Np, Nw, Ndt, Nret
+    INTEGER, INTENT(IN) :: N, Np, Nw, Ndt, Nret, Ncores
     REAL*8, INTENT(OUT) :: pr(N+1, 5,Np, Nret), wr(Nw,4, Nret)
     REAl*8, INTENT(OUT) :: fr_mb(N, 2, Np, Nret), fr_mA(N, 2,Np, Nret), fr_ms(N, 2, Np, Nret), fr_mF(N,2,Np, Nret)
     REAl*8, INTENT(OUT) :: fr_ns(N, 2, Np, Nret), fr_nF(N, 2,Np, Nret), fr_NNs(2, Np, Nret), fr_NNF(2, Np, Nret)
@@ -46,7 +46,7 @@ IMPLICIT NONE
     
     nanvalue=.FALSE.
     
-    CALL omp_set_num_threads( 4 )
+    CALL omp_set_num_threads( Ncores )
     
     sqdt=DSQRT(dt)
     sq3=DSQRT(3.0d0)

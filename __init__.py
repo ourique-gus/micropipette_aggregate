@@ -1,5 +1,4 @@
 import micropipette_aggregate.CalcForce as CalcForce
-import micropipette_aggregate.CalcForceOMP as CalcForceOMP
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -7,7 +6,6 @@ import os
 class micropipette_aggregate():
     def __init__(self):
         self.CalcForce = CalcForce
-        self.CalcForceOMP = CalcForceOMP
         self.path_self=os.path.join(os.path.dirname(__file__))
         
     def load_ic(self,path=""):
@@ -18,7 +16,7 @@ class micropipette_aggregate():
         self.ic = np.load(self.path_ic,allow_pickle=True)
         self.data_ic = {
             'particles':self.ic['particles'],
-            'walls':self.ic['wall'],
+            'wall':self.ic['wall'],
             'configuration':self.ic['configuration'].item(),
             'forces':self.ic['forces'],
             'instant':self.ic['k']
@@ -38,11 +36,20 @@ class micropipette_aggregate():
             for par in config:
                 self.data_cc['configuration'][par[0]][par[1]]=par[2]
         
+    def get_cell_mean_xy(self):
+        cxy=np.vstack([
+            [np.mean(self.data_cc['particles'][:-1,0,i].T) for i in range(self.data_cc['configuration']['system']['Npart'])],
+            [np.mean(self.data_cc['particles'][:-1,1,i].T) for i in range(self.data_cc['configuration']['system']['Npart'])]
+            ]).T
+        return cxy
+        
+    def get_af_bool(self):
+        return np.ones(self.data_cc['configuration']['system']['Npart'])
             
-    def integrate(self,omp=False):
-        func = omp and self.CalcForceOMP or self.CalcForce
+    def integrate(self,num_cores):
         config = self.data_cc['configuration'].copy()
-        out=func.integrate(self.data_cc['particles'], self.data_cc['walls'], config['membrane']['Nm'], config['system']['Npart'],
+        af_bool=self.get_af_bool()
+        out=self.CalcForce.integrate(self.data_cc['particles'], self.data_cc['wall'], config['membrane']['Nm'], config['system']['Npart'],
                     config['wall']['Nw'], config['system']['Lx'], config['system']['Ly'], config['system']['dx'],
                     config['system']['dy'],
 
@@ -62,8 +69,8 @@ class micropipette_aggregate():
                     config['wall']['yb'], config['wall']['yt'],
 
                     config['active']['v0'],config['active']['Dt'], config['active']['Dr'],
-                    config['active']['tau'], config['system']['mu0'],  config['system']['Af'],
-                    config['system']['dt'], config['system']['Ndt'], config['system']['Nret'])
+                    config['active']['tau'], config['system']['mu0'],  af_bool*config['system']['Af'],
+                    config['system']['dt'], config['system']['Ndt'], config['system']['Nret'], num_cores)
                     
         state=out[-1]
         particles=out[0][:,:,:,-1]
@@ -85,7 +92,7 @@ class micropipette_aggregate():
         
         data = {
             'particles':particles,
-            'walls':wall,
+            'wall':wall,
             'configuration':config,
             'forces':forces,
             'instant':instant,
@@ -93,10 +100,33 @@ class micropipette_aggregate():
         
         return data, state
 
-    def evolve(self,omp=False):
+    def evolve(self,num_cores=1):
         state=True
         while state:
-            data,state=self.integrate(omp)
+            data,state=self.integrate(num_cores)
         self.data_cc=data
         
-            
+    def save_data(self,path):
+        np.savez_compressed(path,
+            particles=self.data_cc['particles'],
+            wall=self.data_cc['wall'],
+            forces=self.data_cc['forces'],
+            configuration=self.data_cc['configuration'],
+            instant=self.data_cc['instant']
+        )
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
