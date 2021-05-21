@@ -3,3 +3,4 @@
 *.pdf
 *.pyc
 *.so
+__pycache__

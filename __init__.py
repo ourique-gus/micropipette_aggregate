@@ -1,12 +1,15 @@
-import micropipette_aggregate.CalcForce as CalcForce
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+import os, time
 
 class micropipette_aggregate():
-    def __init__(self):
-        self.CalcForce = CalcForce
+    def __init__(self, comp=False):
         self.path_self=os.path.join(os.path.dirname(__file__))
+        if comp:
+            os.system("make -C " + self.path_self)
+        import micropipette_aggregate.CalcForce as CalcForce
+        self.CalcForce = CalcForce
+        
         
     def load_ic(self,path=""):
         if path=="":

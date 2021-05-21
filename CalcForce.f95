@@ -19,21 +19,22 @@ IMPLICIT NONE
     REAL*8, INTENT(IN) :: v0, ddt, ddr, tau, mu0, Af(:), dt
     INTEGER, INTENT(IN) :: N, Np, Nw, Ndt, Nret, Ncores
     REAL*8, INTENT(OUT) :: pr(N+1, 5,Np, Nret), wr(Nw,4, Nret)
-    REAl*8, INTENT(OUT) :: fr_mb(N, 2, Np, Nret), fr_mA(N, 2,Np, Nret), fr_ms(N, 2, Np, Nret), fr_mF(N,2,Np, Nret)
-    REAl*8, INTENT(OUT) :: fr_ns(N, 2, Np, Nret), fr_nF(N, 2,Np, Nret), fr_NNs(2, Np, Nret), fr_NNF(2, Np, Nret)
-    REAl*8, INTENT(OUT) :: fr_cF(N,2, Np, Nret)
-    REAl*8, INTENT(OUT) :: fr_sAf(N, 2, Np, Nret), fr_wF(N, 2, Np, Nret)
+    REAL*4, INTENT(OUT) :: fr_mb(N, 2, Np, Nret), fr_mA(N, 2,Np, Nret), fr_ms(N, 2, Np, Nret), fr_mF(N,2,Np, Nret)
+    REAL*4, INTENT(OUT) :: fr_ns(N, 2, Np, Nret), fr_nF(N, 2,Np, Nret), fr_NNs(2, Np, Nret), fr_NNF(2, Np, Nret)
+    REAL*4, INTENT(OUT) :: fr_cF(N,2, Np, Nret)
+    REAL*4, INTENT(OUT) :: fr_sAf(N, 2, Np, Nret), fr_wF(N, 2, Np, Nret)
     LOGICAL, INTENT(OUT) :: nanvalue
     REAL*8 :: f(N+1,2,Np), pn(N+1,5,Np), wn(Nw,4)
-    REAl*8 :: f_mb(N,2,Np), f_mA(N,2,Np), f_ms(N,2,Np), f_mF(N,2,Np), f_ns(N,2,Np), f_nF(N,2,Np)
-    REAl*8 :: f_NNs(2, Np), f_NNF(2, Np)
-    REAl*8 :: f_cF(N, 2, Np)
-    REAl*8 :: f_sAf(N,2, Np), f_wF(N, 2, Np)
+    REAL*8 :: f_mb(N,2,Np), f_mA(N,2,Np), f_ms(N,2,Np), f_mF(N,2,Np), f_ns(N,2,Np), f_nF(N,2,Np)
+    REAL*8 :: f_NNs(2, Np), f_NNF(2, Np)
+    REAL*8 :: f_cF(N, 2, Np)
+    REAL*8 :: f_sAf(N,2, Np), f_wF(N, 2, Np)
     REAL*8 :: dist(N,4,4), A(N,4), Av(N,4,2), s(N), su(N,2), sd(N,2), Req, Frep, Area, ddif(N,2), adif(N,3), step(N)
     INTEGER :: i, j, ii, jj, kk, ll, Nv, rsp, step_var, step_pos,  f_check(N, Np)
-    INTEGER :: Nc(INT(Lx/dx)*INT(Ly/dy)), Ncpos(N,Np), pos(2, N, INT(Lx/dx)*INT(Ly/dy)), ct(9,INT(Lx/dx)*INT(Ly/dy))
-    INTEGER :: uu, tt, posv, Nx, Ny, id1, id2, idp1, idp2, nei(2,N, N, Np), nn(N,Np)
-    INTEGER :: wNc(INT(Lx/dx)*INT(Ly/dy)), wpos(Nw, INT(Lx/dx)*INT(Ly/dy)), wnei(N,N, Np), wnn(N,Np)
+    INTEGER*1 :: Nc(INT(Lx/dx)*INT(Ly/dy)), Ncpos(N,Np), wNc(INT(Lx/dx)*INT(Ly/dy)), nn(N,Np), wnn(N,Np)
+    INTEGER*2 :: pos(2, 4*N, INT(Lx/dx)*INT(Ly/dy)), nei(2,4*N, N, Np), wnei(4*N,N, Np), wpos(Nw, INT(Lx/dx)*INT(Ly/dy))
+    INTEGER*4 :: ct(9,INT(Lx/dx)*INT(Ly/dy))
+    INTEGER :: uu, tt, posv, Nx, Ny, id1, id2, idp1, idp2 
     REAL*8 :: rv(2), r, faux, pi
     REAL*8 :: sqdt, sq3, Acte, otau, rdn(N)
     INTEGER*8 :: b_time, s_time, e_time, r_time, Ntries
@@ -72,14 +73,16 @@ IMPLICIT NONE
             IF (jj-1 > 0) THEN
                 ct(2,kk)=(ii)+((jj-1)-1)*Ny
             END IF
-            IF (ii+1 <= Nx) THEN
+            IF ((ii+1 <= Nx) .AND. (jj-1 > 0)) THEN
                 ct(3,kk)=(ii+1)+((jj-1)-1)*Ny
-                ct(6,kk)=(ii+1)+((jj)-1)*Ny
             END IF
             IF (ii-1 > 0) THEN
                 ct(4,kk)=(ii-1)+((jj)-1)*Ny
             END IF
             ct(5,kk)=kk
+            IF (ii+1 <= Nx) THEN
+                ct(6,kk)=(ii+1)+((jj)-1)*Ny
+            END IF
             IF ((ii-1 > 0) .AND. (jj+1 <= Ny)) THEN
                 ct(7,kk)=(ii-1)+((jj+1)-1)*Ny
             END IF
@@ -89,7 +92,6 @@ IMPLICIT NONE
             IF ((ii+1 <= Nx) .AND. (jj+1 <= Ny)) THEN
                 ct(9,kk)=(ii+1)+((jj+1)-1)*Ny
             END IF
-
         END DO
     END DO
     
@@ -100,23 +102,19 @@ IMPLICIT NONE
     !! TIME = 0.19
     
     DO tt=1, Ndt
-    
-        f=0
-        f_mb=0
-        f_mA=0
-        f_ms=0
-        f_mF=0
-        f_ns=0
-        f_nF=0
-        f_NNs=0
-        f_NNF=0
-        f_cF=0
-        f_sAf=0
-        f_wF=0
-        f_check=0
-
-        !$OMP PARALLEL SECTIONS PRIVATE(ii,jj)
-
+        
+        !$OMP PARALLEL SECTIONS
+        
+        !$OMP SECTION
+            f_mF =0
+        !$OMP SECTION
+            f_cF=0
+        !$OMP SECTION
+            f_wF=0
+        !$OMP END PARALLEL SECTIONS
+        
+        
+        !$OMP PARALLEL SECTIONS PRIVATE(jj, posv)
         !$OMP SECTION
         !! put_cell_in_box
         Nc=0
@@ -140,13 +138,12 @@ IMPLICIT NONE
         END DO
         
         !$OMP END PARALLEL SECTIONS
-    
-    
-        !! find_neighbours_to_interact
+        
+    !! find_neighbours_to_interact
         nn=0
         wnn=0
         
-        !$OMP PARALLEL DO PRIVATE(i,ii,jj,kk, ll, posv) 
+        !$OMP PARALLEL DO PRIVATE(jj,kk, ll, posv) 
         DO ii=1,Np
             DO jj=1,N
                 posv=INT(pn(jj,1,ii)/dx)+1+INT(pn(jj,2,ii)/dy)*Ny
@@ -171,7 +168,7 @@ IMPLICIT NONE
         !$OMP END PARALLEL DO
         
         !! calculate_interactions
-        !$OMP PARALLEL DO PRIVATE(ii,jj,kk, rv, r, faux) REDUCTION ( + : f_mF, f_cF )
+        !$OMP PARALLEL DO PRIVATE(ii,jj,kk, id2, idp2, rv, r, faux) REDUCTION ( + : f_mF, f_cF )
         DO ii=1, Np
             DO jj=1,N
                 DO kk=1,nn(jj,ii)
@@ -195,7 +192,7 @@ IMPLICIT NONE
                         ELSEIF (r < c_rl) THEN
                             faux=c_Fa*(r-c_re)/(c_rl-c_re)  
                             f_cF(jj,:,ii)=f_cF(jj,:,ii)+faux*rv/r
-                            f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r  
+                            f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r
                             f_check(jj,ii)=1
                             f_check(id2,idp2)=1
                         END IF
@@ -213,7 +210,7 @@ IMPLICIT NONE
             END DO
         END DO
         !$OMP END PARALLEL DO
-
+        
         !! calculane_membrane
         !$OMP PARALLEL DO PRIVATE(ii, jj, kk, dist, A, Av, s, su, sd, Area, ddif, adif, step)
         DO ii=1,Np
@@ -325,23 +322,27 @@ IMPLICIT NONE
         END DO
         !$OMP END PARALLEL DO
        
-        f(1:N,:,:)=f_mb+f_mA+f_ms+f_mF+f_ns+f_nF+f_cF+f_sAf+f_wF
-        f(Nv,:,:)=f_NNs+f_NNF
-        
-        !! execute_movement
-		!$OMP PARALLEL DO PRIVATE(kk,ii, rdn) SHARED(otau, v0)
+        !$OMP PARALLEL DO
 		DO ii=1, Np
-			pn(:,3,ii)=mu0*f(:,1,ii)
+            f(1:N,:,ii)=f_mb(:,:,ii)+f_mA(:,:,ii)+f_ms(:,:,ii)+f_mF(:,:,ii)+f_ns(:,:,ii) &
+                        +f_nF(:,:,ii)+f_cF(:,:,ii)+f_sAf(:,:,ii)+f_wF(:,:,ii)
+            f(Nv,:,ii)=f_NNs(:,ii)+f_NNF(:,ii)
+        END DO
+        !$OMP END PARALLEL DO
+        !! execute_movement
+		!$OMP PARALLEL DO
+		DO ii=1, Np
 			pn(:,4,ii)=mu0*f(:,2,ii)
-			pn(:,1,ii)=pn(:,1,ii)+pn(:,3,ii)*dt
+			pn(:,3,ii)=mu0*f(:,1,ii)
 			pn(:,2,ii)=pn(:,2,ii)+pn(:,4,ii)*dt
-
+			pn(:,1,ii)=pn(:,1,ii)+pn(:,3,ii)*dt
 		END DO
 		!$OMP END PARALLEL DO
         
         
         wn(:,1)=wn(:,1)+wn(:,3)*dt
         wn(:,2)=wn(:,2)+wn(:,4)*dt
+
         
         step_var=step_var+1
         IF (step_var == rsp) THEN
@@ -366,26 +367,15 @@ IMPLICIT NONE
             END IF
         END IF
         
-                
-        
-        IF (ANY(ISNAN(pn))) THEN
-            nanvalue=.TRUE.
-            EXIT
-        END IF
-
     END DO
     
+    IF (ANY(ISNAN(pn))) THEN
+        nanvalue=.TRUE.
+    END IF
     !WRITE(*,*) f_mF
     
     
 RETURN
 
 END SUBROUTINE Integrate
-
-
-
-
-
-
-
 
