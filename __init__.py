@@ -46,8 +46,66 @@ class micropipette_aggregate():
             ]).T
         return cxy
         
+        
+    def get_name_string(self):
+        config = self.data_cc['configuration']
+        strs=["{:08d}".format(int(10000*i)) for i in [
+            config['membrane']['ks'],
+            config['membrane']['kb'],
+            config['membrane']['kA'],
+            config['cell']['Fa'],
+            config['cell']['rl'],
+            config['system']['Af']
+            ]]
+        return "-".join(strs)
+        
+    def get_Nit_string(self):
+        return "{:08d}".format(self.data_cc['configuration']['system']['Nit'])
+        
     def get_af_bool(self):
-        return np.ones(self.data_cc['configuration']['system']['Npart'])
+        config = self.data_cc['configuration']
+        particles=self.data_cc['particles']
+        center=np.vstack([
+            [np.mean(particles[:-1,0,i].T) for i in range(config['system']['Npart'])],
+            [np.mean(particles[:-1,1,i].T) for i in range(config['system']['Npart'])]
+            ]).T
+        nn=len(center)
+        nd=np.zeros((nn,nn))
+        for ii in range(nn-1):
+            for jj in range(ii+1,nn):
+                nd[ii,jj]=1/((center[ii,0]-center[jj,0])*(center[ii,0]-center[jj,0])+ \
+                            (center[ii,1]-center[jj,1])*(center[ii,1]-center[jj,1]))
+        nd+=nd.T
+        
+        rho=np.sum(nd,axis=1)
+        
+        index=   (center[:,0] > config['wall']['xl']-2)\
+                *(center[:,0] < config['wall']['xr'])\
+                *(center[:,1] > config['wall']['yb']-2)\
+                *(center[:,1] < config['wall']['yt']+2)
+        
+        mrho=np.mean((rho*(center[:,0] < config['wall']['xl']))[~index])
+        var=rho < mrho 
+        var[index]=False
+        
+        """
+        index=   (center[:,0] > config['wall']['xl']-3)\
+                *(center[:,0] < config['wall']['xl']+3)\
+                *(center[:,1] > config['wall']['yt'])\
+                *(center[:,1] < config['wall']['yt']+3)
+        
+        var[index]=True
+        
+        index=   (center[:,0] > config['wall']['xl']-3)\
+                *(center[:,0] < config['wall']['xl']+3)\
+                *(center[:,1] < config['wall']['yb'])\
+                *(center[:,1] > config['wall']['yt']-3)
+        
+
+        var[index]=True
+        """
+        
+        return var
             
     def integrate(self,num_cores):
         config = self.data_cc['configuration'].copy()

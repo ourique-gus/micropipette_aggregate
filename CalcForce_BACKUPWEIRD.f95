@@ -102,23 +102,21 @@ IMPLICIT NONE
     !! TIME = 0.19
     
     DO tt=1, Ndt
-    
-        f=0
-        f_mb=0
-        f_mA=0
-        f_ms=0
-        f_mF=0
-        f_ns=0
-        f_nF=0
-        f_NNs=0
-        f_NNF=0
-        f_cF=0
-        f_sAf=0
-        f_wF=0
-        f_check=0
-
-        !$OMP PARALLEL SECTIONS PRIVATE(ii,jj)
-
+        
+        !$OMP PARALLEL SECTIONS
+        
+        !$OMP SECTION
+            f_mF =0
+        !$OMP SECTION
+            f_cF=0
+        !$OMP SECTION
+            f_wF=0
+        !$OMP SECTION
+            f_check=0
+        !$OMP END PARALLEL SECTIONS
+        
+        
+        !$OMP PARALLEL SECTIONS PRIVATE(jj, posv)
         !$OMP SECTION
         !! put_cell_in_box
         Nc=0
@@ -142,8 +140,8 @@ IMPLICIT NONE
         END DO
         
         !$OMP END PARALLEL SECTIONS
-    
-        !! find_neighbours_to_interact
+        
+    !! find_neighbours_to_interact
         nn=0
         wnn=0
         
@@ -196,7 +194,7 @@ IMPLICIT NONE
                         ELSEIF (r < c_rl) THEN
                             faux=c_Fa*(r-c_re)/(c_rl-c_re)  
                             f_cF(jj,:,ii)=f_cF(jj,:,ii)+faux*rv/r
-                            f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r  
+                            f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r
                             f_check(jj,ii)=1
                             f_check(id2,idp2)=1
                         END IF
@@ -214,7 +212,7 @@ IMPLICIT NONE
             END DO
         END DO
         !$OMP END PARALLEL DO
-
+        
         !! calculane_membrane
         !$OMP PARALLEL DO PRIVATE(ii, jj, kk, dist, A, Av, s, su, sd, Area, ddif, adif, step)
         DO ii=1,Np
@@ -333,21 +331,20 @@ IMPLICIT NONE
             f(Nv,:,ii)=f_NNs(:,ii)+f_NNF(:,ii)
         END DO
         !$OMP END PARALLEL DO
-        
         !! execute_movement
 		!$OMP PARALLEL DO
 		DO ii=1, Np
-			pn(:,3,ii)=mu0*f(:,1,ii)
 			pn(:,4,ii)=mu0*f(:,2,ii)
-			pn(:,1,ii)=pn(:,1,ii)+pn(:,3,ii)*dt
+			pn(:,3,ii)=mu0*f(:,1,ii)
 			pn(:,2,ii)=pn(:,2,ii)+pn(:,4,ii)*dt
-
+			pn(:,1,ii)=pn(:,1,ii)+pn(:,3,ii)*dt
 		END DO
 		!$OMP END PARALLEL DO
         
         
         wn(:,1)=wn(:,1)+wn(:,3)*dt
         wn(:,2)=wn(:,2)+wn(:,4)*dt
+
         
         step_var=step_var+1
         IF (step_var == rsp) THEN
@@ -372,11 +369,8 @@ IMPLICIT NONE
             END IF
         END IF
         
-                
-        
-
     END DO
-
+    
     IF (ANY(ISNAN(pn))) THEN
         nanvalue=.TRUE.
     END IF
