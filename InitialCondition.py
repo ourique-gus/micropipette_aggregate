@@ -188,7 +188,7 @@ config['wall']['re']=1.75*config['membrane']['r0']
 #wall=np.array([[-9999,-9998],[-9999,-9998],[0,0],[0,0]]).T
 
 
-config['wall']['xl']=np.min(wall[:,0])-3
+config['wall']['xl']=np.min(wall[:,0])
 config['wall']['xr']=config['system']['Lx']
 config['wall']['yb']=np.mean(wall[int(len(wall)/2):,1])
 config['wall']['yt']=np.mean(wall[:int(len(wall)/2),1])

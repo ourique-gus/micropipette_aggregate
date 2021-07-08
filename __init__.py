@@ -22,7 +22,7 @@ class micropipette_aggregate():
             'wall':self.ic['wall'],
             'configuration':self.ic['configuration'].item(),
             'forces':self.ic['forces'],
-            'instant':self.ic['k']
+            'instant':self.ic.get('k') and self.ic['k'] or self.ic['instant']
         }
         self.data_cc = {i:self.data_ic[i].copy() for i in self.data_ic}
         
@@ -55,15 +55,18 @@ class micropipette_aggregate():
             config['membrane']['kA'],
             config['cell']['Fa'],
             config['cell']['rl'],
-            config['system']['Af']
+            config['system']['Af'],
+            config['system']['dP']
             ]]
         return "-".join(strs)
         
     def get_Nit_string(self):
         return "{:08d}".format(self.data_cc['configuration']['system']['Nit'])
         
-    def get_af_bool(self):
+    def get_af_val(self):
         config = self.data_cc['configuration']
+        Af=config['system']['Af']
+        dP=config['system']['dP']
         particles=self.data_cc['particles']
         center=np.vstack([
             [np.mean(particles[:-1,0,i].T) for i in range(config['system']['Npart'])],
@@ -79,37 +82,46 @@ class micropipette_aggregate():
         
         rho=np.sum(nd,axis=1)
         
+        var=np.zeros(len(center))
+        
+        ## outside micropipette
+        
         index=   (center[:,0] > config['wall']['xl']-2)\
                 *(center[:,0] < config['wall']['xr'])\
                 *(center[:,1] > config['wall']['yb']-2)\
                 *(center[:,1] < config['wall']['yt']+2)
         
         mrho=np.mean((rho*(center[:,0] < config['wall']['xl']))[~index])
-        var=rho < mrho 
-        var[index]=False
+        var[rho < mrho]=Af
         
-        """
-        index=   (center[:,0] > config['wall']['xl']-3)\
+        index=   (center[:,0] > config['wall']['xl']-6)\
                 *(center[:,0] < config['wall']['xl']+3)\
                 *(center[:,1] > config['wall']['yt'])\
-                *(center[:,1] < config['wall']['yt']+3)
+                *(center[:,1] < config['wall']['yt']+8)
         
-        var[index]=True
+        var[index]=Af
         
-        index=   (center[:,0] > config['wall']['xl']-3)\
+        index=   (center[:,0] > config['wall']['xl']-6)\
                 *(center[:,0] < config['wall']['xl']+3)\
                 *(center[:,1] < config['wall']['yb'])\
-                *(center[:,1] > config['wall']['yt']-3)
+                *(center[:,1] > config['wall']['yt']-8)
+                
+        var[index]=Af
+        ## inside micropipette
         
-
-        var[index]=True
-        """
+        index=   (center[:,0] > config['wall']['xl']-10)\
+        *(center[:,0] < config['wall']['xr'])\
+        *(center[:,1] > config['wall']['yb']-1.5)\
+        *(center[:,1] < config['wall']['yt']+1.5)
+        
+        mrho=np.mean(rho[index])
+        var[index*(rho < mrho) ]=Af-dP
         
         return var
             
     def integrate(self,num_cores):
         config = self.data_cc['configuration'].copy()
-        af_bool=self.get_af_bool()
+        af_val=self.get_af_val()
         out=self.CalcForce.integrate(self.data_cc['particles'], self.data_cc['wall'], config['membrane']['Nm'], config['system']['Npart'],
                     config['wall']['Nw'], config['system']['Lx'], config['system']['Ly'], config['system']['dx'],
                     config['system']['dy'],
@@ -130,7 +142,7 @@ class micropipette_aggregate():
                     config['wall']['yb'], config['wall']['yt'],
 
                     config['active']['v0'],config['active']['Dt'], config['active']['Dr'],
-                    config['active']['tau'], config['system']['mu0'],  af_bool*config['system']['Af'],
+                    config['active']['tau'], config['system']['mu0'],  af_val,
                     config['system']['dt'], config['system']['Ndt'], config['system']['Nret'], num_cores)
                     
         state=out[-1]
