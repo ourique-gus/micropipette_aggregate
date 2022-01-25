@@ -85,6 +85,7 @@ class micropipette_aggregate():
         var=np.zeros(len(center))
         
         ## outside micropipette
+        """
         
         index=   (center[:,0] > config['wall']['xl']-2)\
                 *(center[:,0] < config['wall']['xr'])\
@@ -92,7 +93,8 @@ class micropipette_aggregate():
                 *(center[:,1] < config['wall']['yt']+2)
         
         mrho=np.mean((rho*(center[:,0] < config['wall']['xl']))[~index])
-        var[rho < mrho]=Af
+        stdrho=np.std((rho*(center[:,0] < config['wall']['xl']))[~index])
+        var[rho < mrho-stdrho]=Af
         
         index=   (center[:,0] > config['wall']['xl']-6)\
                 *(center[:,0] < config['wall']['xl']+3)\
@@ -104,7 +106,7 @@ class micropipette_aggregate():
         index=   (center[:,0] > config['wall']['xl']-6)\
                 *(center[:,0] < config['wall']['xl']+3)\
                 *(center[:,1] < config['wall']['yb'])\
-                *(center[:,1] > config['wall']['yt']-8)
+                *(center[:,1] > config['wall']['yb']-8)
                 
         var[index]=Af
         ## inside micropipette
@@ -114,8 +116,50 @@ class micropipette_aggregate():
         *(center[:,1] > config['wall']['yb']-1.5)\
         *(center[:,1] < config['wall']['yt']+1.5)
         
-        mrho=np.mean(rho[index])
-        var[index*(rho < mrho) ]=Af-dP
+        var[index]=0
+        
+        index=   (center[:,0] > config['wall']['xl']-10)\
+        *(center[:,0] < config['wall']['xr'])\
+        *(center[:,1] > config['wall']['yb']-1.5)\
+        *(center[:,1] < config['wall']['yt']+1.5)\
+        *(center[:,0] > np.max(center[:,0])-10)
+        
+        var[index]=Af-dP
+        
+#        mrho=np.mean(rho[index])
+#        var[index*(rho < mrho) ]=Af-dP
+        
+        """
+        
+        index=(center[:,0] < config['wall']['xl'])
+        
+        mx = np.mean(center[:,0])
+        my = np.mean(center[:,1])
+        
+        dx = 0.95*0.5*(config['wall']['xl']-np.min(center[:,0]))
+        dy = 0.8*0.5*(np.max(center[:,1])-np.min(center[:,1]))
+        
+        index = (
+            (mx-center[:,0])*(mx-center[:,0])/dx/dx +
+            (my-center[:,1])*(my-center[:,1])/dy/dy
+        ) > 1
+        
+        var[index] = Af
+        
+        index=   (center[:,0] > config['wall']['xl']-10)\
+        *(center[:,0] < config['wall']['xr'])\
+        *(center[:,1] > config['wall']['yb']-1.5)\
+        *(center[:,1] < config['wall']['yt']+1.5)
+        
+        var[index]=0
+        
+        index=   (center[:,0] > config['wall']['xl'])\
+        *(center[:,0] < config['wall']['xr'])\
+        *(center[:,1] > config['wall']['yb']-1.5)\
+        *(center[:,1] < config['wall']['yt']+1.5)\
+        *(center[:,0] > np.max(center[:,0])-10)
+        
+        var[index]=Af-dP
         
         return var
             

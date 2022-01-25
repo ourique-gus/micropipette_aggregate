@@ -31,7 +31,7 @@ IMPLICIT NONE
     REAL*8 :: f_sAf(N,2, Np), f_wF(N, 2, Np)
     REAL*8 :: dist(N,4,4), A(N,4), Av(N,4,2), s(N), su(N,2), sd(N,2), Req, Frep, Area, ddif(N,2), adif(N,3), step(N)
     INTEGER :: i, j, ii, jj, kk, ll, Nv, rsp, step_var, step_pos,  f_check(N, Np)
-    INTEGER*1 :: Nc(INT(Lx/dx)*INT(Ly/dy)), Ncpos(N,Np), wNc(INT(Lx/dx)*INT(Ly/dy)), nn(N,Np), wnn(N,Np)
+    INTEGER*2 :: Nc(INT(Lx/dx)*INT(Ly/dy)), Ncpos(N,Np), wNc(INT(Lx/dx)*INT(Ly/dy)), nn(N,Np), wnn(N,Np)
     INTEGER*2 :: pos(2, 4*N, INT(Lx/dx)*INT(Ly/dy)), nei(2,4*N, N, Np), wnei(4*N,N, Np), wpos(Nw, INT(Lx/dx)*INT(Ly/dy))
     INTEGER*4 :: ct(9,INT(Lx/dx)*INT(Ly/dy))
     INTEGER :: uu, tt, posv, Nx, Ny, id1, id2, idp1, idp2 
@@ -100,6 +100,60 @@ IMPLICIT NONE
     rsp=Ndt/Nret
     
     !! TIME = 0.19
+
+    !$OMP PARALLEL SECTIONS PRIVATE(ii,jj)
+
+    !$OMP SECTION
+    !! put_cell_in_box
+    Nc=0
+    DO ii=1, Np
+        DO jj=1,N
+            posv=INT(pn(jj, 1,ii)/dx)+1+INT(pn(jj, 2,ii)/dy)*Ny
+            Nc(posv)=Nc(posv)+1
+            pos(1, Nc(posv), posv)=jj
+            pos(2, Nc(posv), posv)=ii
+            Ncpos(jj,ii)=Nc(posv)
+        END DO
+    END DO
+    
+    !$OMP SECTION
+    !! put_wall_in_box
+    wNc=0
+    DO ii=1,Nw
+        posv=INT(wn(ii,1)/dx)+1+INT(wn(ii,2)/dy)*Ny
+        wNc(posv)=wNc(posv)+1
+        wpos(wNc(posv),posv)=ii
+    END DO
+    
+    !$OMP END PARALLEL SECTIONS
+
+    !! find_neighbours_to_interact
+    nn=0
+    wnn=0
+    
+    !$OMP PARALLEL DO PRIVATE(jj,kk, ll, posv) 
+    DO ii=1,Np
+        DO jj=1,N
+            posv=INT(pn(jj,1,ii)/dx)+1+INT(pn(jj,2,ii)/dy)*Ny
+            DO kk=1,4
+                DO ll=1, Nc(ct(kk,posv))
+                    nn(jj,ii)=nn(jj,ii)+1
+                    nei( :,nn(jj,ii), jj, ii)=pos( :, ll, ct(kk,posv) )
+                END DO
+            END DO
+            DO ll=Ncpos(jj,ii)+1, Nc(posv)
+                nn(jj,ii)=nn(jj,ii)+1
+                nei( :,nn(jj, ii), jj, ii)=pos( :, ll, posv )
+            END DO
+            DO kk=1,9
+                DO ll=1, wNc(ct(kk,posv))
+                        wnn(jj,ii)=wnn(jj,ii)+1
+                        wnei(wnn(jj,ii), jj, ii)=wpos( ll, ct(kk,posv) )
+                END DO
+            END DO
+        END DO
+    END DO
+    !$OMP END PARALLEL DO
     
     DO tt=1, Ndt
     
@@ -117,60 +171,6 @@ IMPLICIT NONE
         f_wF=0
         f_check=0
 
-        !$OMP PARALLEL SECTIONS PRIVATE(ii,jj)
-
-        !$OMP SECTION
-        !! put_cell_in_box
-        Nc=0
-        DO ii=1, Np
-            DO jj=1,N
-                posv=INT(pn(jj, 1,ii)/dx)+1+INT(pn(jj, 2,ii)/dy)*Ny
-                Nc(posv)=Nc(posv)+1
-                pos(1, Nc(posv), posv)=jj
-                pos(2, Nc(posv), posv)=ii
-                Ncpos(jj,ii)=Nc(posv)
-            END DO
-        END DO
-        
-        !$OMP SECTION
-        !! put_wall_in_box
-        wNc=0
-        DO ii=1,Nw
-            posv=INT(wn(ii,1)/dx)+1+INT(wn(ii,2)/dy)*Ny
-            wNc(posv)=wNc(posv)+1
-            wpos(wNc(posv),posv)=ii
-        END DO
-        
-        !$OMP END PARALLEL SECTIONS
-    
-        !! find_neighbours_to_interact
-        nn=0
-        wnn=0
-        
-        !$OMP PARALLEL DO PRIVATE(jj,kk, ll, posv) 
-        DO ii=1,Np
-            DO jj=1,N
-                posv=INT(pn(jj,1,ii)/dx)+1+INT(pn(jj,2,ii)/dy)*Ny
-                DO kk=1,4
-                    DO ll=1, Nc(ct(kk,posv))
-                        nn(jj,ii)=nn(jj,ii)+1
-                        nei( :,nn(jj,ii), jj, ii)=pos( :, ll, ct(kk,posv) )
-                    END DO
-                END DO
-                DO ll=Ncpos(jj,ii)+1, Nc(posv)
-                    nn(jj,ii)=nn(jj,ii)+1
-                    nei( :,nn(jj, ii), jj, ii)=pos( :, ll, posv )
-                END DO
-                DO kk=1,9
-                    DO ll=1, wNc(ct(kk,posv))
-                            wnn(jj,ii)=wnn(jj,ii)+1
-                            wnei(wnn(jj,ii), jj, ii)=wpos( ll, ct(kk,posv) )
-                    END DO
-                END DO
-            END DO
-        END DO
-        !$OMP END PARALLEL DO
-        
         !! calculate_interactions
         !$OMP PARALLEL DO PRIVATE(ii,jj,kk, id2, idp2, rv, r, faux) REDUCTION ( + : f_mF, f_cF )
         DO ii=1, Np
@@ -214,6 +214,7 @@ IMPLICIT NONE
             END DO
         END DO
         !$OMP END PARALLEL DO
+        
 
         !! calculane_membrane
         !$OMP PARALLEL DO PRIVATE(ii, jj, kk, dist, A, Av, s, su, sd, Area, ddif, adif, step)
@@ -325,7 +326,8 @@ IMPLICIT NONE
             
         END DO
         !$OMP END PARALLEL DO
-       
+        
+
         !$OMP PARALLEL DO
 		DO ii=1, Np
             f(1:N,:,ii)=f_mb(:,:,ii)+f_mA(:,:,ii)+f_ms(:,:,ii)+f_mF(:,:,ii)+f_ns(:,:,ii) &
@@ -372,9 +374,6 @@ IMPLICIT NONE
             END IF
         END IF
         
-                
-        
-
     END DO
 
     IF (ANY(ISNAN(pn))) THEN
