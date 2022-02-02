@@ -32,7 +32,8 @@ IMPLICIT NONE
     REAL*8 :: dist(N,4,4), A(N,4), Av(N,4,2), s(N), su(N,2), sd(N,2), Req, Frep, Area, ddif(N,2), adif(N,3), step(N)
     INTEGER :: i, j, ii, jj, kk, ll, Nv, rsp, step_var, step_pos,  f_check(N, Np)
     INTEGER*2 :: Nc(INT(Lx/dx)*INT(Ly/dy)), Ncpos(N,Np), wNc(INT(Lx/dx)*INT(Ly/dy)), nn(N,Np), wnn(N,Np)
-    INTEGER*2 :: pos(2, 4*N, INT(Lx/dx)*INT(Ly/dy)), nei(2,4*N, N, Np), wnei(4*N,N, Np), wpos(Nw, INT(Lx/dx)*INT(Ly/dy))
+    INTEGER*2 :: pos(2, 4*N, INT(Lx/dx)*INT(Ly/dy)), wpos(Nw, INT(Lx/dx)*INT(Ly/dy))
+    INTEGER*2, ALLOCATABLE :: nei(:,:, :, :), wnei(:, :, :), nvar(:,:), wvar(:,:)
     INTEGER*4 :: ct(9,INT(Lx/dx)*INT(Ly/dy))
     INTEGER :: uu, tt, posv, Nx, Ny, id1, id2, idp1, idp2 
     REAL*8 :: rv(2), r, faux, pi
@@ -61,6 +62,8 @@ IMPLICIT NONE
 
     Nx=INT(Lx/dx)
     Ny=INT(Ly/dy)
+    
+    ALLOCATE(nei(2,4*N, N, Np), wnei(4*N,N, Np))
     
 
     ct=-1
@@ -155,6 +158,33 @@ IMPLICIT NONE
     END DO
     !$OMP END PARALLEL DO
     
+    ALLOCATE (nvar(INT(SUM(1.0*nn)),4), wvar(INT(SUM(1.0*wnn)),3))
+    
+    write(*,*) INT(SUM(1.0*wnn))
+    
+    ll=0
+    uu=0
+    DO ii=1, Np
+        DO jj=1,N
+            DO kk=1,nn(jj,ii)
+                ll=ll+1
+                nvar(ll,1) = jj
+                nvar(ll,2) = ii
+                nvar(ll,3) = nei(1, kk, jj, ii)
+                nvar(ll,4) = nei(2, kk, jj, ii)
+            END DO
+            DO kk=1,wnn(jj,ii)
+                uu=uu+1
+                wvar(uu,1) = jj
+                wvar(uu,2) = ii
+                wvar(uu,3) = wnei(kk, jj, ii)
+            END DO
+        END DO
+    END DO
+    
+    DEALLOCATE(nei, wnei)
+    
+    
     DO tt=1, Ndt
     
         f=0
@@ -172,47 +202,66 @@ IMPLICIT NONE
         f_check=0
 
         !! calculate_interactions
-        !$OMP PARALLEL DO PRIVATE(ii,jj,kk, id2, idp2, rv, r, faux) REDUCTION ( + : f_mF, f_cF )
-        DO ii=1, Np
-            DO jj=1,N
-                DO kk=1,nn(jj,ii)
-                    id2=nei(1,kk,jj,ii)
-                    idp2=nei(2,kk,jj,ii)
-                    rv=pn(id2,1:2,idp2)-pn(jj,1:2, ii)
+        !$OMP PARALLEL DO PRIVATE(ii, id1, idp1, id2, idp2, rv, r, faux) REDUCTION ( + : f_mF, f_cF )
+        DO ii=1, ll
+            !DO jj=1,N
+                !DO kk=1,nn(jj,ii)
+                    id1 = nvar(ii,1)
+                    idp1 = nvar(ii,2)
+                    id2 = nvar(ii,3)
+                    idp2 = nvar(ii,4)
+                    !id2 = nei(1,kk,jj,ii)
+                    !idp2 = nei(2,kk,jj,ii)
+                    rv=pn(id2,1:2,idp2)-pn(id1,1:2, idp1)
                     r=DSQRT(rv(1)*rv(1)+rv(2)*rv(2))
-                    IF (ii==nei(2,kk,jj,ii)) THEN
+                    IF (idp1==idp2) THEN
                         IF (r <= m_re) THEN
                             faux=m_Fr*(r-m_re)/m_re
-                            f_mF(jj,:,ii)=f_mF(jj,:,ii)+faux*rv/r
+                            f_mF(id1,:,idp1)=f_mF(id1,:,idp1)+faux*rv/r
                             f_mF(id2,:,idp2)=f_mF(id2,:,idp2)-faux*rv/r
                         END IF
                     ELSE
                         IF (r < c_re) THEN
                             faux=c_Fr*(r-c_re)/c_re
-                            f_cF(jj,:,ii)=f_cF(jj,:,ii)+faux*rv/r
+                            f_cF(id1,:,idp1)=f_cF(id1,:,idp1)+faux*rv/r
                             f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r  
-                            f_check(jj,ii)=1
+                            f_check(id1,idp1)=1
                             f_check(id2,idp2)=1  
                         ELSEIF (r < c_rl) THEN
                             faux=c_Fa*(r-c_re)/(c_rl-c_re)  
-                            f_cF(jj,:,ii)=f_cF(jj,:,ii)+faux*rv/r
+                            f_cF(id1,:,idp1)=f_cF(id1,:,idp1)+faux*rv/r
                             f_cF(id2,:,idp2)=f_cF(id2,:,idp2)-faux*rv/r  
-                            f_check(jj,ii)=1
+                            f_check(id1,idp1)=1
                             f_check(id2,idp2)=1
                         END IF
                     END IF 
-                END DO
-                DO kk=1,wnn(jj,ii)
-                    rv=pn(jj,1:2,ii)-wn(wnei(kk,jj,ii),1:2)
-                    r=DSQRT(rv(1)*rv(1)+rv(2)*rv(2))
-                    IF (r <= w_re) THEN
-                        faux=w_Fr*(r-w_re)/w_re
-                        f_wF(jj,:,ii)=f_wF(jj,:,ii)-faux*rv/(r+1E-6)
-                        f_check(jj,ii)=1
-                    END IF
-                END DO
-            END DO
+                !END DO
+                !DO kk=1,wnn(jj,ii)
+                !    rv=pn(jj,1:2,ii)-wn(wnei(kk,jj,ii),1:2)
+                !    r=DSQRT(rv(1)*rv(1)+rv(2)*rv(2))
+                !    IF (r <= w_re) THEN
+                !        faux=w_Fr*(r-w_re)/w_re
+                !        f_wF(jj,:,ii)=f_wF(jj,:,ii)-faux*rv/(r+1E-6)
+                !        f_check(jj,ii)=1
+                !    END IF
+                !END DO
+            !END DO
         END DO
+        !$OMP END PARALLEL DO
+        
+        !$OMP PARALLEL DO PRIVATE(ii, id1, idp1, id2, rv, r, faux) REDUCTION ( + : f_wF )
+        DO ii=1, uu
+            id1 = wvar(ii,1)
+            idp1 = wvar(ii,2)
+            id2 = wvar(ii, 3)
+            rv=pn(id1,1:2,idp1)-wn(id2,1:2)
+            r=DSQRT(rv(1)*rv(1)+rv(2)*rv(2))
+            IF (r <= w_re) THEN
+                faux=w_Fr*(r-w_re)/w_re
+                f_wF(id1,:,idp1)=f_wF(id1,:,idp1)-faux*rv/(r+1E-6)
+                f_check(id1,idp1)=1
+            END IF
+        END DO 
         !$OMP END PARALLEL DO
         
 
